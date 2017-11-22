@@ -1,0 +1,6 @@
+Sentence = "I like " a_or_an " " Fruite "."
+a_or_an  = "a" | "an"
+Fruite   = Apple | Orange | Grape
+Apple    = "apple"
+Orange   = "orange"
+Grape    = "grape"
