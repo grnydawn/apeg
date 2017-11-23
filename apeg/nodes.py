@@ -13,6 +13,7 @@ from six import reraise, python_2_unicode_compatible, with_metaclass, \
     iteritems
 
 from .exceptions import VisitationError, UndefinedLabel
+from .lego import parse as legoparse
 #from parsimonious.exceptions import VisitationError, UndefinedLabel
 
 
@@ -36,6 +37,7 @@ class Node(object):
     # I tried making this subclass list, but it got ugly. I had to construct
     # invalid ones and patch them up later, and there were other problems.
     __slots__ = ['expr',  # The expression that generated me
+                 'regex', # The regular expression representation
                  'full_text',  # The full text fed to the parser
                  'start', # The position in the text where that expr started matching
                  'end',   # The position after start where the expr first didn't
@@ -48,6 +50,7 @@ class Node(object):
         self.start = start
         self.end = end
         self.children = children or []
+        self.regex = None
 
     @property
     def expr_name(self):
@@ -123,6 +126,11 @@ class Node(object):
             if self.children else ''))
         return '\n'.join(ret)
 
+    def _as_regex(self):
+        if not self.regex:
+            #import pdb; pdb.set_trace()
+            self.regex = self.expr._as_regex(self)
+        return self.regex
 
 class RegexNode(Node):
     """Node returned from a ``Regex`` expression

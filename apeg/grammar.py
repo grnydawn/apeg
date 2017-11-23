@@ -183,6 +183,7 @@ class BootstrappingGrammar(Grammar):
         # Hard-code enough of the rules to parse the grammar that describes the
         # grammar description language, to bootstrap:
         comment = Regex(r'#[^\r\n]*', name='comment')
+        #meaninglessness = FirstmatchOf(Regex(r'\s+'), comment, name='meaninglessness')
         meaninglessness = OneOf(Regex(r'\s+'), comment, name='meaninglessness')
         _ = ZeroOrMore(meaninglessness, name='_')
         equals = Sequence(Literal('='), _, name='equals')
@@ -200,10 +201,11 @@ class BootstrappingGrammar(Grammar):
                          Regex('[ilmsux]*', ignore_case=True),
                          _,
                          name='regex')
+        #atom = FirstmatchOf(reference, literal, regex, name='atom')
         atom = OneOf(reference, literal, regex, name='atom')
         quantified = Sequence(atom, quantifier, name='quantified')
 
-        term = OneOf(quantified, atom, name='term')
+        term = FirstmatchOf(quantified, atom, name='term')
         not_term = Sequence(Literal('!'), term, _, name='not_term')
         term.members = (not_term,) + term.members
 
@@ -212,7 +214,7 @@ class BootstrappingGrammar(Grammar):
         firstmatched = Sequence(term, OneOrMore(firstmatch_term), name='firstmatched')
         or_term = Sequence(Literal('|'), _, term, name='or_term')
         ored = Sequence(term, OneOrMore(or_term), name='ored')
-        expression = OneOf(ored, firstmatched, sequence, term, name='expression')
+        expression = FirstmatchOf(ored, firstmatched, sequence, term, name='expression')
         rule = Sequence(label, equals, expression, name='rule')
         rules = Sequence(_, OneOrMore(rule), name='rules')
 
@@ -240,10 +242,10 @@ rule_syntax = (r'''
     literal = spaceless_literal _
 
     # So you can't spell a regex like `~"..." ilm`:
-    spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is |
+    spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is /
                         ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
 
-    expression = ored | firstmatched | sequence | term
+    expression = ored / firstmatched / sequence / term
     firstmatch_term = "/" _ term
     firstmatched = term firstmatch_term+
     or_term = "|" _ term
@@ -251,7 +253,7 @@ rule_syntax = (r'''
     sequence = term term+
     not_term = "!" term _
     lookahead_term = "&" term _
-    term = not_term | lookahead_term | quantified | atom
+    term = not_term / lookahead_term / quantified / atom
     quantified = atom quantifier
     atom = reference | literal | regex | parenthesized
     regex = "~" spaceless_literal ~"[ilmsux]*"i _
@@ -269,6 +271,46 @@ rule_syntax = (r'''
     meaninglessness = ~r"\s+" | comment
     comment = ~r"#[^\r\n]*"
     ''')
+
+#rule_syntax = (r'''
+#    # Ignored things (represented by _) are typically hung off the end of the
+#    # leafmost kinds of nodes. Literals like "/" count as leaves.
+#
+#    rules = _ rule*
+#    rule = label equals expression
+#    equals = "=" _
+#    literal = spaceless_literal _
+#
+#    # So you can't spell a regex like `~"..." ilm`:
+#    spaceless_literal = ~"u?r?\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\""is |
+#                        ~"u?r?'[^'\\\\]*(?:\\\\.[^'\\\\]*)*'"is
+#
+#    expression = ored | firstmatched | sequence | term
+#    firstmatch_term = "/" _ term
+#    firstmatched = term firstmatch_term+
+#    or_term = "|" _ term
+#    ored = term or_term+
+#    sequence = term term+
+#    not_term = "!" term _
+#    lookahead_term = "&" term _
+#    term = not_term | lookahead_term | quantified | atom
+#    quantified = atom quantifier
+#    atom = reference | literal | regex | parenthesized
+#    regex = "~" spaceless_literal ~"[ilmsux]*"i _
+#    parenthesized = "(" _ expression ")" _
+#    quantifier = ~"[*+?]" _
+#    reference = label !equals
+#
+#    # A subsequent equal sign is the only thing that distinguishes a label
+#    # (which begins a new rule) from a reference (which is just a pointer to a
+#    # rule defined somewhere else):
+#    label = ~"[a-zA-Z_][a-zA-Z_0-9]*" _
+#
+#    # _ = ~r"\s*(?:#[^\r\n]*)?\s*"
+#    _ = meaninglessness*
+#    meaninglessness = ~r"\s+" | comment
+#    comment = ~r"#[^\r\n]*"
+#    ''')
 
 
 class LazyReference(text_type):
@@ -351,7 +393,7 @@ class RuleVisitor(NodeVisitor):
         We already know it's going to be ored, from the containing ``ored``.
 
         """
-        slash, _, term = or_term
+        vbar, _, term = or_term
         return term
 
     def visit_firstmatched(self, node, firstmatched):

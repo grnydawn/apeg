@@ -8,6 +8,7 @@ These do the parsing.
 
 from inspect import getargspec
 import re
+import random
 
 from six import integer_types, python_2_unicode_compatible
 from six.moves import range
@@ -254,8 +255,8 @@ class Literal(Expression):
         # TODO: Get backslash escaping right.
         return '"%s"' % self.literal
 
-    def _as_regex(self):
-        return legoparse(self.literal)
+    def _as_regex(self, node):
+        return legoparse(node.expr.literal)
 
 class TokenMatcher(Literal):
     """An expression matching a single token of a given type
@@ -307,7 +308,7 @@ class Regex(Expression):
         return '~"%s"%s' % (self.re.pattern,
                             self._regex_flags_from_bits(self.re.flags))
 
-    def _as_regex(self):
+    def _as_regex(self, node):
         return legoparse(self.re.pattern)
 
 class Compound(Expression):
@@ -360,8 +361,12 @@ class Sequence(Compound):
         return u'({0})'.format(u' '.join(self._unicode_members()))
 
     def _as_regex(self):
-        regexes = [m._as_regex() for m in self.members]
-        return regexes[0].concatenate(regexes[1:])
+        if not hasattr(self, '__regex__'):
+            import pdb; pdb.set_trace()
+            print(id(self), self.name)
+            regexes = [m._as_regex() for m in self.members]
+            setattr(self, '__regex__', regexes[0].concatenate(regexes[1:]))
+        return self.__regex__
 
 class FirstmatchOf(Compound):
     """A series of expressions, one of which must match
@@ -388,26 +393,36 @@ class OneOf(Compound):
     """
     def _uncached_match(self, text, pos, cache, error):
         # check if there is any ambiguity
-        N = len(self.members)
-        if N > 1:
-            for m1 in range(N-1):
-                for m2 in range(m1+1,N):
-                    r1 = self.members[m1]._as_regex()
-                    r2 = self.members[m2]._as_regex()
-                    if not (r1.to_fsm()&r2.to_fsm()).empty():
-                        raise AmbiguousGrammarError(text, pos, self)
+        matched = []
         for m in self.members:
             node = m.match_core(text, pos, cache, error)
             if node is not None:
-                # Wrap the succeeding child in a node representing the OneOf:
-                return Node(self, text, pos, node.end, children=[node])
+                matched.append(node)
+        N = len(matched)
+        if N > 1:
+            for m1 in range(N-1):
+                for m2 in range(m1+1,N):
+                    r1 = matched[m1]._as_regex()
+                    r2 = matched[m2]._as_regex()
+                    if not r1.derive(r2).empty() or not r2.derive(r1).empty():
+                        raise AmbiguousGrammarError(text, pos, self)
+                    if not (r1.to_fsm()&r2.to_fsm()).empty():
+                        raise AmbiguousGrammarError(text, pos, self)
+        #import pdb; pdb.set_trace()
+        if matched:
+            # Wrap the succeeding child in a node representing the OneOf:
+            node = random.choice(matched)
+            return Node(self, text, pos, node.end, children=[node])
 
     def _as_rhs(self):
         return u'({0})'.format(u' / '.join(self._unicode_members()))
 
     def _as_regex(self):
-        regexes = [m._as_regex() for m in self.members]
-        return regexes[0].union(regexes[1:])
+        if not hasattr(self, '__regex__'):
+            print(id(self), self.name)
+            regexes = [m._as_regex() for m in self.members]
+            setattr(self, '__regex__', regexes[0].union(regexes[1:]))
+        return self.__regex__
 
 class Lookahead(Compound):
     """An expression which consumes nothing, even if its contained expression

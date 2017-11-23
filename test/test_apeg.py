@@ -2,8 +2,8 @@ from context import apeg
 import unittest, sys, os
 
 here = os.path.dirname(os.path.realpath(__file__))
-#grammar_test = 'fruites'
-grammar_test = 'simple'
+grammar_test = 'fruites'
+#grammar_test = 'simple'
 grammar_rules = os.path.join(here, 'grammar_%s.txt'%grammar_test)
 sample_input = os.path.join(here, 'sample_%s.txt'%grammar_test)
 

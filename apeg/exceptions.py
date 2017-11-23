@@ -61,7 +61,7 @@ class AmbiguousGrammarError(ParseError):
     """A grammar contains ambiguous syntax."""
 
     def __str__(self):
-        return u"Rule '%s' contains an ambiguous syntax. The ambiguous portion of the text begins with '%s' (line %s, column %s)." % (
+        return u"Rule '%s' contains an ambiguous syntax. \nThe ambiguous portion of the text begins with '%s' (line %s, column %s)." % (
                 self.expr.name,
                 self.text[self.pos:self.pos + 20],
                 self.line(),
